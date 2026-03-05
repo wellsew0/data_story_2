@@ -1,0 +1,518 @@
+---
+title: "Urbanization and Natural Land (1800 to present)"
+author: "Elizabeth Wells"
+date: "`r Sys.Date()`"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(flexdashboard)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(scales)
+library(plotly)
+
+theme_set(
+  theme_minimal(base_size = 15) +
+    theme(
+      plot.title = element_text(face = "bold"),
+      plot.subtitle = element_text(color = "gray40"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank()
+    )
+)
+
+pct_format_clean <- label_percent(scale = 1)
+
+url <- 'https://ourworldindata.org/grapher/long-term-urban-population-region.csv?v=1&csvType=full&useColumnShortNames=true'
+urban <- read_csv(url)
+
+url <- 'https://ourworldindata.org/grapher/land-natural-share.csv?v=1&csvType=full&useColumnShortNames=true'
+nathab <- read_csv(url)
+
+url <- 'https://ourworldindata.org/grapher/land-use-over-the-long-term.csv?v=1&csvType=full&useColumnShortNames=true'
+land_use <- read_csv(url)
+
+land_world <- land_use %>%
+  filter(entity == "World", year >= 1800) %>%
+  select(year, uopp_c, grazing_c, cropland_c) %>%
+  rename(
+    `Urban/built-up` = uopp_c,
+    `Grazing land` = grazing_c,
+    `Cropland` = cropland_c
+  )
+land_long <- land_world %>%
+  pivot_longer(
+    cols = c(`Urban/built-up`, `Grazing land`, `Cropland`),
+    names_to = "land_type",
+    values_to = "area"
+  ) %>%
+  mutate(
+    land_type = factor(
+      land_type,
+      levels = c("Cropland", "Grazing land", "Urban/built-up")
+    )
+  )
+
+
+
+
+
+urban_world <- urban %>%
+  filter(entity == "World", year >= 1800) %>%
+  mutate(urban_pct = urbc_c_share)
+
+nathab_world <- nathab %>%
+  filter(entity == "World", year >= 1800) %>%
+  rename(natural_pct = natural_ha_share)
+
+```
+
+# Global Trends Since 1800
+
+## Left column
+
+### Global urbanization trend
+
+```{r}
+p_urban <- ggplot(urban_world, 
+       aes(
+         x = year, 
+         y = urban_pct)) +
+  geom_line(color = "#E76F51",
+            aes(group = 1), linewidth = 1.5) +
+  geom_vline(xintercept = 1950,
+             linetype = "dashed",
+             color = "gray30") +
+  geom_point(
+    aes(text = paste0(
+      "Year: ", year, 
+      "<br>Urban population: ", round(urban_pct, 1), "%")),
+    alpha = 0) +
+  labs(
+    title = "Urbanization has accelerated since 1800.",
+    x = NULL,
+    y = "Urban population (%)"
+  )
+
+ggplotly(p_urban, tooltip = "text")
+```
+### Global natural habitat trend
+
+```{r}
+p_nathab <- ggplot(nathab_world,
+       aes(
+         x = year,
+         y = natural_pct)) +
+  geom_line(color = "#279132",
+            aes(group = 1), linewidth = 1.5) +
+  geom_vline(xintercept = 1950,
+             linetype = "dashed",
+             color = "gray30") +
+  geom_point(
+    aes(text = paste0(
+      "Year: ", year,
+      "<br>Natural land area: ", round(natural_pct, 1), "%"
+    )),
+    alpha = 0
+  ) +
+  labs(
+    title = "Natural habitat has declined since 1800.",
+    x = NULL,
+    y = "Natural habitat (% of land)"
+  )
+
+ggplotly(p_nathab, tooltip = "text")
+```
+## Right column
+
+### Latest urban share
+```{r}
+latest_urban <- urban_world %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  pull(urban_pct)
+
+valueBox(
+  value = paste0(round(latest_urban, 1), "%"),
+  caption = "Global population living in cities",
+  color = "warning")
+```
+### Latest natural habitat share
+
+```{r}
+latest_natural <- nathab_world %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  pull(natural_pct)
+
+valueBox(
+  value = paste0(round(latest_natural, 1), "%"),
+  caption = "Global land area that remains natural",
+  color = "success"
+)
+```
+
+### What to notice
+Since 1800, an increasing share of the global population has lived in urban areas, with especially rapid growth after 1950. Over the same period, the share of global land that remains natural has declined. These two indicators measure different dimensions of change (demographic and environmental), but together they illustrate the scale and pace of global transformation.
+
+
+# Urbanization by Region
+
+## Left Column
+
+### Urban population share by region (1800-present)
+
+```{r} 
+regions <- c("World", "Europe", "North America", "Asia", "Africa")
+
+urban_regions <- urban %>%
+  filter(entity %in% regions, year >= 1800) %>%
+  mutate(urban_pct = urbc_c_share)
+
+p_select <- plot_ly()
+
+for (r in regions) {
+  df_r <- urban_regions %>% filter(entity == r)
+  
+  p_select <- p_select %>%
+    add_lines(
+      data = df_r,
+      x = ~year,
+      y = ~urban_pct,
+      name = r,
+      visible = TRUE,
+      hovertemplate = paste0(
+        "Region: ", r,
+        "<br>Year: %{x}",
+        "<br>Urban population: %{y:.1f}%<extra></extra>"
+      )
+    )
+}
+
+buttons <- list()
+
+buttons[[1]] <- list(
+  method = "update",
+  args = list(
+    list(visible = rep(TRUE, length(regions))),
+    list(title = "Urban population share: All regions")
+  ),
+  label = "All regions"
+)
+
+for (i in seq_along(regions)) {
+  buttons[[i +1]] <- list(
+    method = "update",
+    args = list(
+      list(visible = seq_along(regions) ==i),
+      list(title = paste0("Urban population share: ", regions[i]))
+    ),
+    label = regions [i]
+  )
+}
+
+p_select %>%
+  layout(
+    title = "Urban population share: All regions",
+    xaxis = list(title = ""),
+    yaxis = list(title = "Urban population (%)"),
+    shapes = list(
+      list(
+        type = "line",
+        x0 = 1950, x1 = 1950,
+        y0 = 0, y1 = 1,
+        xref = "x", yref = "paper", 
+        line = list(color = "gray30", dash = "dash")
+      )
+    ),
+    updatemenus = list (
+      list(
+        type = "dropdown",
+        x = 1.02, y = 1,
+        xanchor = "left",
+        buttons = buttons
+      )
+    )
+  )
+```
+
+### Natural habitat share by region (1800-present)
+
+```{r}
+nathab_regions <- nathab %>%
+  filter(entity %in% regions) %>%
+  rename(natural_pct = natural_ha_share)
+
+p_select_nat <- plot_ly()
+
+for (r in regions) {
+  df_r <- nathab_regions %>% filter(entity == r)
+  
+  p_select_nat <- p_select_nat %>%
+    add_lines(
+      data = df_r,
+      x = ~year,
+      y = ~natural_pct,
+      name = r,
+      visible = TRUE,
+      hovertemplate = paste0(
+        "Region: ", r,
+        "<br>Year: %{x}",
+        "<br>Natural habitat: %{y:.1f}%<extra></extra>"
+      )
+    )
+}
+buttons <- list()
+
+buttons[[1]] <- list(
+  method = "update",
+  args = list(
+    list(visible = rep(TRUE, length(regions))),
+    list(title = "Urban population share: All regions")
+  ),
+  label = "All regions"
+)
+
+for (i in seq_along(regions)) {
+  buttons[[i +1]] <- list(
+    method = "update",
+    args = list(
+      list(visible = seq_along(regions) ==i),
+      list(title = paste0("Urban population share: ", regions[i]))
+    ),
+    label = regions [i]
+  )
+}
+
+p_select_nat %>%
+  layout(
+    title = "Natural habitat share: All regions",
+    xaxis = list(title = ""),
+    yaxis = list(title = "Natural habitat (% of land)"),
+    shapes = list(
+      list(
+        type = "line",
+        x0 = 1950, x1 = 1950,
+        y0 = 0, y1 = 1,
+        xref = "x", yref = "paper", 
+        line = list(color = "gray30", dash = "dash")
+      )
+    ),
+    updatemenus = list (
+      list(
+        type = "dropdown",
+        x = 1.02, y = 1,
+        xanchor = "left",
+        buttons = buttons
+      )
+    )
+  )
+```
+
+
+
+## Right Column
+
+### Urban population and natural land share by region (2023)
+
+```{r}
+urban_latest <- urban_regions %>% 
+  group_by(entity) %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(entity, urban_pct)
+
+nathab_latest <- nathab_regions %>%
+  group_by(entity) %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(entity, natural_pct)
+
+region_summary <- urban_latest %>%
+  left_join(nathab_latest, by = "entity") %>%
+  mutate(
+    `Urban population (%)` = round(urban_pct, 1),
+    `Natural habitat (%)` = round(natural_pct, 1)
+  ) %>%
+  select(
+    Region = entity, 
+    `Urban population (%)`, 
+    `Natural habitat (%)`
+  )
+
+region_summary <- region_summary %>%
+  arrange(desc(`Urban population (%)`)) %>%
+  mutate(order = ifelse(Region == "World", 0, 1)) %>%
+  arrange(order, desc(`Urban population (%)`)) %>%
+  select(-order)
+
+knitr::kable(region_summary)
+
+```
+
+### What the regional comparison shows
+
+Urbanization is a global trend, but it has unfolded differently across regions. North America and Europe reached high levels of urbanization earlier and now have the largest shares of people living in cities. By contrast, Asia and Africa are still undergoing rapid urban growth.
+Comparing urban population and natural land share across regions reveals that the relationship between urbanization and environmental change is not straightforward. Regions with high levels of urbanization (e.g. North America and Europe) still retain relatively large shares of natural land, while some less urbanized regions have lower shares, indicating that urbanization alone does not determine how much land remains natural; other factors (e.g. land use, development patterns, etc.) must also play important roles.
+
+# Global Land Use
+
+## Left Column
+
+
+```{r}
+
+land_plot <- land_long %>%
+  mutate(
+    land_type = factor(
+      land_type,
+      levels = c("Cropland", "Grazing land", "Urban/built-up")
+    ),
+    area_bil = area / 1e9
+  ) %>%
+  arrange(land_type, year)
+
+p_land <- plot_ly()
+
+
+df_crop <- land_plot %>% filter(land_type == "Cropland")
+p_land <- p_land %>%
+  add_trace(
+    data = df_crop,
+    x = ~year,
+    y = ~area_bil,
+    type = "scatter",
+    mode = "lines",
+    stackgroup = "one",
+    name = "Cropland",
+    line = list(color = "#c0a2fc", width = 2),
+    fillcolor = "#c0a2fc",
+    hovertemplate = paste0(
+      "Type: Cropland",
+      "<br>Year: %{x}",
+      "<br>Area: %{y:.2f} billion km²",
+      "<extra></extra>"
+    )
+  )
+
+
+df_graz <- land_plot %>% filter(land_type == "Grazing land")
+p_land <- p_land %>%
+  add_trace(
+    data = df_graz,
+    x = ~year,
+    y = ~area_bil,
+    type = "scatter",
+    mode = "lines",
+    stackgroup = "one",
+    name = "Grazing land",
+    line = list(color = "#E9C46A", width = 2),
+    fillcolor = "#E9C46A",
+    hovertemplate = paste0(
+      "Type: Grazing land",
+      "<br>Year: %{x}",
+      "<br>Area: %{y:.2f} billion km²",
+      "<extra></extra>"
+    )
+  )
+
+
+df_urban <- land_plot %>% filter(land_type == "Urban/built-up")
+p_land <- p_land %>%
+  add_trace(
+    data = df_urban,
+    x = ~year,
+    y = ~area_bil,
+    type = "scatter",
+    mode = "lines",
+    stackgroup = "one",
+    name = "Urban/built-up",
+    line = list(color = "#279132", width = 2),
+    fillcolor = "#279132",
+    hovertemplate = paste0(
+      "Type: Urban/built-up",
+      "<br>Year: %{x}",
+      "<br>Area: %{y:.2f} billion km²",
+      "<extra></extra>"
+    )
+  )
+
+
+p_land <- p_land %>%
+  layout(
+    title = list(text = "Global land use over time: cropland, grazing, and urban land"),
+    xaxis = list(title = ""),
+    yaxis = list(title = "Land area (billion km²)"),
+    hovermode = "x"  # hover follows the vertical slice (makes line hovering easy)
+  )
+
+p_land
+```
+
+
+```{r}
+land_latest <- land_plot %>%
+  group_by(land_type) %>%
+  filter(year == max(year)) %>%
+  ungroup()
+
+p_land_pie <- plot_ly(
+  data = land_latest,
+  labels = ~land_type,
+  values = ~area_bil,
+  type = "pie",
+  textinfo = "label+percent",
+  hovertemplate = paste0(
+    "%{label}",
+    "<br>Area: %{value:.2f} billion km²",
+    "<br>Share: %{percent}",
+    "<extra></extra>"
+  ),
+  marker = list(
+    colors = c("#c0a2fc", "#E9C46A", "#279132")
+  )
+)
+
+p_land_pie %>%
+  layout(
+    title = "Global land use today",
+    showlegend = FALSE
+  )
+```
+
+## Right Column
+
+### How global land is used
+
+Over the last two centuries, cropland and grazing land expanded dramatically as agriculture intensified to support a growing population. Grazing land is the largest share of human-used land, followed by cropland. In contrast, land used for cities and built infrastructure remains relatively small. Even though urban populations have grown rapidly, the physical footprint of urban areas is still a small fraction of global use.
+
+### Key Takeaways
+
+1. The rapid rise of urbanization since the mid-20th century reflects a major shift in where people live. More than half the world's population now lives in cities.
+
+2. The share of land that remains natural has declined over the same period, indicating the growing human influence on Earth's landscapes.
+
+3. Most land conversion is driven not by cities themselves but by agriculture. Cropland and grazing land together occupy a much larger share of land than urban areas.
+
+### Conclusion
+
+Taken together, these patterns highlight the scale of human transformation of the Earth's land over the last two centuries. Urbanization has reshaped where people live, while agriculture has reshaped how land is used.
+Understanding these trends is important for thinking about the future of land use, sustainability, and conservation. As the global population continues to grow and urbanize, managing land resources in ways that balance food production, urban development, and the protection of natural ecosystems will be a central challenge.
+
+### Data Sources
+[Our World in Data](https://ourworldindata.org/) (OWID) is a project of the nonprofit organization Global Change Data Lab. OWID's mission is '"to publish research and data to make progress against the world's largest problems."'
+The following datasets were used in this project.
+
+1. [Urbanization over the past 500 years](https://ourworldindata.org/urbanization#urbanization-over-the-past-500-years)
+
+2. [Natural habitat share](https://ourworldindata.org/grapher/land-natural-share)
+
+3. [Land use change over the long term](https://ourworldindata.org/land-use#how-has-global-land-use-changed-over-the-long-term
+)
+
