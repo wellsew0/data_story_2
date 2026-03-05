@@ -20,7 +20,7 @@ library(scales)
 library(plotly)
 
 theme_set(
-  theme_minimal(base_size = 15) +
+  theme_minimal(base_size = 13) +
     theme(
       plot.title = element_text(face = "bold"),
       plot.subtitle = element_text(color = "gray40"),
