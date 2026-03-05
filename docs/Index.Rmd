@@ -105,6 +105,36 @@ p_urban <- ggplot(urban_world,
 
 ggplotly(p_urban, tooltip = "text")
 ```
+
+
+### Latest urban share
+```{r}
+latest_urban <- urban_world %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  pull(urban_pct)
+
+valueBox(
+  value = paste0(round(latest_urban, 1), "%"),
+  caption = "Global population living in cities",
+  color = "warning")
+```
+### Latest natural habitat share
+
+```{r}
+latest_natural <- nathab_world %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  pull(natural_pct)
+
+valueBox(
+  value = paste0(round(latest_natural, 1), "%"),
+  caption = "Global land area that remains natural",
+  color = "success"
+)
+```
+
+
+## Right column
+
 ### Global natural habitat trend
 
 ```{r}
@@ -132,32 +162,8 @@ p_nathab <- ggplot(nathab_world,
 
 ggplotly(p_nathab, tooltip = "text")
 ```
-## Right column
 
-### Latest urban share
-```{r}
-latest_urban <- urban_world %>%
-  filter(year == max(year, na.rm = TRUE)) %>%
-  pull(urban_pct)
 
-valueBox(
-  value = paste0(round(latest_urban, 1), "%"),
-  caption = "Global population living in cities",
-  color = "warning")
-```
-### Latest natural habitat share
-
-```{r}
-latest_natural <- nathab_world %>%
-  filter(year == max(year, na.rm = TRUE)) %>%
-  pull(natural_pct)
-
-valueBox(
-  value = paste0(round(latest_natural, 1), "%"),
-  caption = "Global land area that remains natural",
-  color = "success"
-)
-```
 
 ### What to notice
 Since 1800, an increasing share of the global population has lived in urban areas, with especially rapid growth after 1950. Over the same period, the share of global land that remains natural has declined. These two indicators measure different dimensions of change (demographic and environmental), but together they illustrate the scale and pace of global transformation.
@@ -243,12 +249,56 @@ p_select %>%
   )
 ```
 
-### Natural habitat share by region (1800-present)
+### Urban population and natural land share by region (2023)
 
 ```{r}
 nathab_regions <- nathab %>%
   filter(entity %in% regions) %>%
   rename(natural_pct = natural_ha_share)
+
+urban_latest <- urban_regions %>% 
+  group_by(entity) %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(entity, urban_pct)
+
+nathab_latest <- nathab_regions %>%
+  group_by(entity) %>%
+  filter(year == max(year, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(entity, natural_pct)
+
+region_summary <- urban_latest %>%
+  left_join(nathab_latest, by = "entity") %>%
+  mutate(
+    `Urban population (%)` = round(urban_pct, 1),
+    `Natural habitat (%)` = round(natural_pct, 1)
+  ) %>%
+  select(
+    Region = entity, 
+    `Urban population (%)`, 
+    `Natural habitat (%)`
+  )
+
+region_summary <- region_summary %>%
+  arrange(desc(`Urban population (%)`)) %>%
+  mutate(order = ifelse(Region == "World", 0, 1)) %>%
+  arrange(order, desc(`Urban population (%)`)) %>%
+  select(-order)
+
+knitr::kable(region_summary)
+
+```
+
+
+
+
+## Right Column
+
+### Natural habitat share by region (1800-present)
+
+```{r}
+
 
 p_select_nat <- plot_ly()
 
@@ -316,46 +366,6 @@ p_select_nat %>%
   )
 ```
 
-
-
-## Right Column
-
-### Urban population and natural land share by region (2023)
-
-```{r}
-urban_latest <- urban_regions %>% 
-  group_by(entity) %>%
-  filter(year == max(year, na.rm = TRUE)) %>%
-  ungroup() %>%
-  select(entity, urban_pct)
-
-nathab_latest <- nathab_regions %>%
-  group_by(entity) %>%
-  filter(year == max(year, na.rm = TRUE)) %>%
-  ungroup() %>%
-  select(entity, natural_pct)
-
-region_summary <- urban_latest %>%
-  left_join(nathab_latest, by = "entity") %>%
-  mutate(
-    `Urban population (%)` = round(urban_pct, 1),
-    `Natural habitat (%)` = round(natural_pct, 1)
-  ) %>%
-  select(
-    Region = entity, 
-    `Urban population (%)`, 
-    `Natural habitat (%)`
-  )
-
-region_summary <- region_summary %>%
-  arrange(desc(`Urban population (%)`)) %>%
-  mutate(order = ifelse(Region == "World", 0, 1)) %>%
-  arrange(order, desc(`Urban population (%)`)) %>%
-  select(-order)
-
-knitr::kable(region_summary)
-
-```
 
 ### What the regional comparison shows
 
