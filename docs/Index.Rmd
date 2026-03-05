@@ -376,6 +376,7 @@ Comparing urban population and natural land share across regions reveals that th
 
 ## Left Column
 
+### Land use over time
 
 ```{r}
 
@@ -463,9 +464,11 @@ p_land <- p_land %>%
     hovermode = "x"  # hover follows the vertical slice (makes line hovering easy)
   )
 
+
 p_land
 ```
 
+### Global land use today
 
 ```{r}
 land_latest <- land_plot %>%
@@ -496,6 +499,7 @@ p_land_pie %>%
     showlegend = FALSE
   )
 ```
+
 
 ## Right Column
 
